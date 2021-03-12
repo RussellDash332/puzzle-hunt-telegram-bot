@@ -1,0 +1,5 @@
+__pycache__/
+.json
+env/
+game_data/
+env.py
