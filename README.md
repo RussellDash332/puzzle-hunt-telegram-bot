@@ -1,5 +1,6 @@
 # puzzle-hunt-telegram-bot
 <img alt="Python" src="https://img.shields.io/badge/python%20-%2314354C.svg?&style=for-the-badge&logo=python&logoColor=white"/>
+
 MSOC 2021 Puzzle Hunt Telegram Bot. Inspired by the [Royal Flush Telegram Bot](https://github.com/puzzlestory/t-royal-flush-telegram-bot)
 
 [Link to the bot](https://t.me/msoc21ph_bot) here.
