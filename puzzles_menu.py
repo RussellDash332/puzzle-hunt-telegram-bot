@@ -4,6 +4,8 @@ from os import path
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ConversationHandler, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
 
+from dpad_manager import read_dp
+
 CHOOSE_PUZZLE, CHOOSE_OPTION, CHECK_ANSWER, CHOOSE_CONTINUE_OPTION = range(4)
 
 def show_puzzles_menu(update, context):
@@ -24,6 +26,8 @@ def choose_puzzle(update, context):
     puzzle_idx = query.data
     puzzles = context.chat_data[user_id]
     context.user_data['cur_puzzle_idx'] = puzzle_idx
+    context.user_data['score'] = puzzles[puzzle_idx].score
+    context.user_data['username'] = update.effective_user.username
 
     name = puzzles[puzzle_idx].name
     description = puzzles[puzzle_idx].description
@@ -96,6 +100,7 @@ def check_answer(update, context):
     user_id = update.message.from_user.id
     puzzles = context.chat_data[user_id]
     puzzle_idx = context.user_data['cur_puzzle_idx']
+    user_name = context.user_data['username']
 
     right_answers = puzzles[puzzle_idx].answers
     user_answer = update.message.text.lower()
@@ -108,12 +113,26 @@ def check_answer(update, context):
     ]
 
     if user_answer in right_answers:
-        result = 'Right answer! Congratulations!'
+        # Simply to display current score and number of solved puzzles
+        user_data_str = read_dp(str(user_id))
+        if user_data_str:
+            user_progress = loads(user_data_str)['progress']
+            user_score = loads(user_data_str)['score']
+        else:
+            user_progress = list()
+            user_score = 0
+        if int(user_score) + puzzles[puzzle_idx].score == 100:
+            result = f'Right answer! Congratulations @{user_name}! You have finished the puzzle!'
+        elif user_progress:
+            result = f'Right answer! Congratulations @{user_name}! You have solved {len(user_progress) + 1} puzzles and your score is now {int(user_score) + puzzles[puzzle_idx].score}!'
+        else:
+            result = f'Right answer! Congratulations @{user_name}! You have solved 1 puzzle and your score is now {int(user_score) + puzzles[puzzle_idx].score}!'
+        
         puzzles[puzzle_idx].is_completed = True
         save_user_progress(str(user_id), context)
     else:
         keyboard.insert(0, [InlineKeyboardButton(text='Try again 🔄', callback_data='try_again')])
-        result = 'Wrong answer, want to try again?'
+        result = 'Sorry, wrong answer! Want to try again?'
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text(result, reply_markup=reply_markup)
@@ -132,7 +151,7 @@ def leave_puzzles_menu(update, context):
     query = update.callback_query
     query.answer()
 
-    query.edit_message_text('Bye, see you later!')
+    query.edit_message_text('Bye, see you later! Feel free to come back and type /puzzles 😊')
     return ConversationHandler.END
 
 puzzles_menu = ConversationHandler(

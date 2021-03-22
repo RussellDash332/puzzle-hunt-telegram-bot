@@ -9,12 +9,16 @@ DATA_PATH = path.join(DATA_DIR, 'game_data.json')
 PROGRESS_PATH = path.join('.', 'users_progress', 'users_progress.json')
 
 class Puzzle:
-    def __init__(self, idx, name, description, answers):
+    def __init__(self, idx, name, description, score, answers):
         self.idx = idx
         self.name = name
-        self.title = f'{idx} {name}'
+        if score == 1:
+            self.title = f'{idx} {name} ({score} point)'
+        else:
+            self.title = f'{idx} {name} ({score} points)'
         self.description = description
         self.answers = answers
+        self.score = score
         self.is_completed = None
 
 def set_progress(puzzles, user_id):
@@ -22,9 +26,10 @@ def set_progress(puzzles, user_id):
 
     if user_data_str:
         user_progress = loads(user_data_str)['progress']
+        user_score = loads(user_data_str)['score']
     else:
         user_progress = list()
-        user_data_str = dumps({'progress': user_progress}, indent=2)
+        user_data_str = dumps({'progress': user_progress, 'score': '0'}, indent=2)
         write_dp(user_id, user_data_str)
 
     for idx, p in puzzles.items():
@@ -37,7 +42,7 @@ def load_data_from_json(user_id):
 
     puzzles = dict()
     for p_idx, data in game_data.items():
-        puzzle = Puzzle(data['idx'], data['name'], data['description'], data['answers'])
+        puzzle = Puzzle(data['idx'], data['name'], data['description'], data['score'], data['answers'])
         puzzles[p_idx] = puzzle
 
     set_progress(puzzles, str(user_id))
@@ -58,18 +63,22 @@ def save_user_progress(user_id, context):
 
     if user_data_str:
         user_progress = loads(user_data_str)['progress']
+        user_score = int(loads(user_data_str)['score'])
     else:
         user_progress = list()
+        user_score = 0
 
     user_progress.append(context.user_data['cur_puzzle_idx'])
-    user_data_str = dumps({'progress': user_progress}, indent=2)
+    user_score += context.user_data['score']
+    user_name = context.user_data['username']
+    user_data_str = dumps({'username': user_name, 'progress': user_progress, 'score': str(user_score)}, indent=2)
     write_dp(user_id, user_data_str)
 
 def send_description(description, chat_id, bot):
     for d_filename in description:
         d_filename = path.join(DATA_DIR, d_filename)
 
-        if d_filename.endswith('.jpg'):
+        if d_filename.endswith('.jpg') or d_filename.endswith('.png'):
             d_photo = open(d_filename, 'rb')
             bot_message = bot.send_photo(
                 chat_id=chat_id,
