@@ -28,10 +28,12 @@ def choose_puzzle(update, context):
     context.user_data['cur_puzzle_idx'] = puzzle_idx
     context.user_data['score'] = puzzles[puzzle_idx].score
     context.user_data['username'] = update.effective_user.username
+    context.user_data['is_voided'] = puzzles[puzzle_idx].is_voided
 
     name = puzzles[puzzle_idx].name
     description = puzzles[puzzle_idx].description
     is_completed = puzzles[puzzle_idx].is_completed
+    is_voided = puzzles[puzzle_idx].is_voided
 
     bot = context.bot
     bot.delete_message(chat_id=user_id, message_id=query.message.message_id)
@@ -42,19 +44,24 @@ def choose_puzzle(update, context):
             InlineKeyboardButton(text='Back to puzzles\' list 📃', callback_data='back')
         ],
         [
+            InlineKeyboardButton(text='Void this puzzle ❌', callback_data='void'),
             InlineKeyboardButton(text='Done ✔️', callback_data='done')
-        ]
+        ],
     ]
 
     txt = [f'Showing "{name}".']
     # Update response for completed puzzle
-    if is_completed:
+    if is_completed or is_voided:
         first_answer = puzzles[puzzle_idx].answers[0]
-        txt.append(f' You already completed this puzzle! The answer was "{first_answer}".\n')
 
-        keyboard[0].pop(0)
-        keyboard[0].append(keyboard[1][0])
-        keyboard.pop(1)
+        if is_completed:
+            txt.append(f' You already completed this puzzle! The answer was "{first_answer}".\n')
+        elif is_voided:
+            txt.append(f' You already voided this puzzle! No way back, but the answer was "{first_answer}".\n')
+
+        keyboard = [list(map(lambda x: x[1], keyboard))]
+        # above uses horizontal display
+        # keyboard = list(map(lambda x: [x[1]], keyboard)) -> vertical display
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -79,6 +86,32 @@ def return_to_puzzles_menu(update, context):
 
     reply_markup = get_options_keyboard(context.chat_data, user_id)
     query.message.reply_text('Choose a puzzle to view...', reply_markup=reply_markup)
+
+    return CHOOSE_PUZZLE
+
+def void(update, context):
+    query = update.callback_query
+    user_id = update.effective_user.id
+    puzzles = context.chat_data[user_id]
+    puzzle_idx = context.user_data['cur_puzzle_idx']
+
+    context.user_data['is_voided'] = True
+    puzzles[puzzle_idx].is_voided = True
+    puzzles[puzzle_idx].set_void_title()
+
+    query.answer()
+    bot = context.bot
+
+    try:
+        last_description = context.user_data['last_description']
+        bot.delete_message(chat_id=user_id, message_id=last_description.message_id)
+    except:
+        pass
+    bot.delete_message(chat_id=user_id, message_id=query.message.message_id)
+
+    reply_markup = get_options_keyboard(context.chat_data, user_id)
+    query.message.reply_text('You just voided the puzzle! Now choose a puzzle to view ...', reply_markup=reply_markup)
+    save_user_progress(str(user_id), context)
 
     return CHOOSE_PUZZLE
 
@@ -132,7 +165,7 @@ def check_answer(update, context):
         save_user_progress(str(user_id), context)
     else:
         keyboard.insert(0, [InlineKeyboardButton(text='Try again 🔄', callback_data='try_again')])
-        result = 'Sorry, wrong answer! Want to try again?'
+        result = 'Sorry, wrong answer! Want to try again?\nTo void the puzzle, go back to the puzzles\' list and reattempt.'
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text(result, reply_markup=reply_markup)
@@ -162,7 +195,8 @@ puzzles_menu = ConversationHandler(
         ],
         CHOOSE_OPTION: [
             CallbackQueryHandler(return_to_puzzles_menu, pattern='^back$'),
-            CallbackQueryHandler(answer_puzzle, pattern='^try$')
+            CallbackQueryHandler(answer_puzzle, pattern='^try$'),
+            CallbackQueryHandler(void, pattern='^void$'),
         ],
         CHECK_ANSWER: [
             MessageHandler(~Filters.regex('^/'), check_answer)

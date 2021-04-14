@@ -20,21 +20,30 @@ class Puzzle:
         self.answers = answers
         self.score = score
         self.is_completed = None
+        self.is_voided = False
+
+    def set_void_title(self):
+        self.title = f'{self.idx} {self.name} (VOIDED)'
 
 def set_progress(puzzles, user_id):
     user_data_str = read_dp(user_id)
 
     if user_data_str:
         user_progress = loads(user_data_str)['progress']
+        user_voids = loads(user_data_str)['voids']
         user_score = loads(user_data_str)['score']
     else:
         user_progress = list()
-        user_data_str = dumps({'progress': user_progress, 'score': '0'}, indent=2)
+        user_voids = list()
+        user_data_str = dumps({'progress': user_progress, 'voids': user_voids, 'score': '0'}, indent=2)
         write_dp(user_id, user_data_str)
 
     for idx, p in puzzles.items():
         if idx in user_progress:
             p.is_completed = True
+        elif idx in user_voids:
+            p.is_voided = True
+            p.set_void_title()
 
 def load_data_from_json(user_id):
     with open(DATA_PATH, 'r') as f:
@@ -52,7 +61,7 @@ def get_options_keyboard(data, user_id):
     if user_id not in data: data[user_id] = load_data_from_json(user_id)
     puzzles = data[user_id]
 
-    titles = [f'{c.title} ✅' if c.is_completed else c.title for c in puzzles.values()]
+    titles = [f'{c.title} ✅' if c.is_completed else f'{c.title} 💀' if c.is_voided else c.title for c in puzzles.values()]
     keys = puzzles.keys()
 
     keyboard = [[InlineKeyboardButton(t, callback_data=k)] for t, k in zip(titles, keys)]
@@ -63,15 +72,22 @@ def save_user_progress(user_id, context):
 
     if user_data_str:
         user_progress = loads(user_data_str)['progress']
+        user_voids = loads(user_data_str)['voids']
         user_score = int(loads(user_data_str)['score'])
     else:
         user_progress = list()
+        user_voids = list()
         user_score = 0
 
-    user_progress.append(context.user_data['cur_puzzle_idx'])
-    user_score += context.user_data['score']
-    user_name = context.user_data['username']
-    user_data_str = dumps({'username': user_name, 'progress': user_progress, 'score': str(user_score)}, indent=2)
+    puzzle = context.user_data
+
+    if puzzle['is_voided']:
+        user_voids.append(puzzle['cur_puzzle_idx'])
+    else:
+        user_progress.append(puzzle['cur_puzzle_idx'])
+        user_score += puzzle['score']
+    user_name = puzzle['username']
+    user_data_str = dumps({'username': user_name, 'progress': user_progress, 'voids': user_voids, 'score': str(user_score)}, indent=2)
     write_dp(user_id, user_data_str)
 
 def send_description(description, chat_id, bot):
