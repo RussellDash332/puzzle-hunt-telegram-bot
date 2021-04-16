@@ -1,3 +1,4 @@
+import time
 from os import path
 from json import load, loads, dump, dumps
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
@@ -9,7 +10,7 @@ DATA_PATH = path.join(DATA_DIR, 'game_data.json')
 PROGRESS_PATH = path.join('.', 'users_progress', 'users_progress.json')
 
 class Puzzle:
-    def __init__(self, idx, name, description, score, answers):
+    def __init__(self, idx, name, description, score, answers, hints):
         self.idx = idx
         self.name = name
         if score == 1:
@@ -18,12 +19,28 @@ class Puzzle:
             self.title = f'{idx} {name} ({score} points)'
         self.description = description
         self.answers = answers
+        self.original_score = score
         self.score = score
+        self.hints = hints
+        self.used_hints = 0
         self.is_completed = None
         self.is_voided = False
+        self.is_final = self.idx == "[FINAL]"
+
+    def set_completed_title(self):
+        # When you rerun the program and reread from DontPad, it doesn't keep track of the number of used hints.
+        # I didn't want to put it in another list, so I decided to cover the title with (COMPLETED) label instead.
+        self.title = f'{self.idx} {self.name} (COMPLETED)'
 
     def set_void_title(self):
         self.title = f'{self.idx} {self.name} (VOIDED)'
+
+    def set_new_score(self):
+        self.score = self.original_score - self.used_hints
+        if self.score == 1:
+            self.title = f'{self.idx} {self.name} ({self.score} point)'
+        else:
+            self.title = f'{self.idx} {self.name} ({self.score} points)'
 
 def set_progress(puzzles, user_id):
     user_data_str = read_dp(user_id)
@@ -31,16 +48,19 @@ def set_progress(puzzles, user_id):
     if user_data_str:
         user_progress = loads(user_data_str)['progress']
         user_voids = loads(user_data_str)['voids']
+        user_solved_time = loads(user_data_str)['solved_time']
         user_score = loads(user_data_str)['score']
     else:
         user_progress = list()
         user_voids = list()
-        user_data_str = dumps({'progress': user_progress, 'voids': user_voids, 'score': '0'}, indent=2)
+        user_solved_time = list()
+        user_data_str = dumps({'progress': user_progress, 'voids': user_voids, 'solved_time': user_solved_time, 'score': '0'}, indent=2)
         write_dp(user_id, user_data_str)
 
     for idx, p in puzzles.items():
         if idx in user_progress:
             p.is_completed = True
+            p.set_completed_title()
         elif idx in user_voids:
             p.is_voided = True
             p.set_void_title()
@@ -51,7 +71,7 @@ def load_data_from_json(user_id):
 
     puzzles = dict()
     for p_idx, data in game_data.items():
-        puzzle = Puzzle(data['idx'], data['name'], data['description'], data['score'], data['answers'])
+        puzzle = Puzzle(data['idx'], data['name'], data['description'], data['score'], data['answers'], data['hints'])
         puzzles[p_idx] = puzzle
 
     set_progress(puzzles, str(user_id))
@@ -73,10 +93,12 @@ def save_user_progress(user_id, context):
     if user_data_str:
         user_progress = loads(user_data_str)['progress']
         user_voids = loads(user_data_str)['voids']
+        user_solved_time = loads(user_data_str)['solved_time']
         user_score = int(loads(user_data_str)['score'])
     else:
         user_progress = list()
         user_voids = list()
+        user_solved_time = list()
         user_score = 0
 
     puzzle = context.user_data
@@ -85,9 +107,10 @@ def save_user_progress(user_id, context):
         user_voids.append(puzzle['cur_puzzle_idx'])
     else:
         user_progress.append(puzzle['cur_puzzle_idx'])
+        user_solved_time.append(time.time())
         user_score += puzzle['score']
     user_name = puzzle['username']
-    user_data_str = dumps({'username': user_name, 'progress': user_progress, 'voids': user_voids, 'score': str(user_score)}, indent=2)
+    user_data_str = dumps({'username': user_name, 'progress': user_progress, 'voids': user_voids, 'solved_time': user_solved_time, 'score': str(user_score)}, indent=2)
     write_dp(user_id, user_data_str)
 
 def send_description(description, chat_id, bot):
