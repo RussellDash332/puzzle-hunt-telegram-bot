@@ -3,6 +3,7 @@ from os import path
 from json import load, loads, dump, dumps
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 
+from env import GIVEN_HINTS, HINT_POINTS
 from dpad_manager import read_dp, write_dp
 
 DATA_DIR = path.join('.', 'game_data')
@@ -28,19 +29,10 @@ class Puzzle:
         self.is_final = self.idx == "[FINAL]"
 
     def set_completed_title(self):
-        # When you rerun the program and reread from DontPad, it doesn't keep track of the number of used hints.
-        # I didn't want to put it in another list, so I decided to cover the title with (COMPLETED) label instead.
         self.title = f'{self.idx} {self.name} (COMPLETED)'
 
     def set_void_title(self):
         self.title = f'{self.idx} {self.name} (VOIDED)'
-
-    def set_new_score(self):
-        self.score = self.original_score - self.used_hints
-        if self.score == 1:
-            self.title = f'{self.idx} {self.name} ({self.score} point)'
-        else:
-            self.title = f'{self.idx} {self.name} ({self.score} points)'
 
 def set_progress(puzzles, user_id):
     user_data_str = read_dp(user_id)
@@ -50,11 +42,13 @@ def set_progress(puzzles, user_id):
         user_voids = loads(user_data_str)['voids']
         user_solved_time = loads(user_data_str)['solved_time']
         user_score = loads(user_data_str)['score']
+        user_hints = loads(user_data_str)['hints']
     else:
         user_progress = list()
         user_voids = list()
         user_solved_time = list()
-        user_data_str = dumps({'progress': user_progress, 'voids': user_voids, 'solved_time': user_solved_time, 'score': '0'}, indent=2)
+        user_hints = dict()
+        user_data_str = dumps({'progress': user_progress, 'voids': user_voids, 'solved_time': user_solved_time, 'score': '0', 'hints': user_hints}, indent=2)
         write_dp(user_id, user_data_str)
 
     for idx, p in puzzles.items():
@@ -87,7 +81,7 @@ def get_options_keyboard(data, user_id):
     keyboard = [[InlineKeyboardButton(t, callback_data=k)] for t, k in zip(titles, keys)]
     return InlineKeyboardMarkup(keyboard)
 
-def save_user_progress(user_id, context):
+def save_user_progress(user_id, context, for_hint):
     user_data_str = read_dp(user_id)
 
     if user_data_str:
@@ -95,22 +89,32 @@ def save_user_progress(user_id, context):
         user_voids = loads(user_data_str)['voids']
         user_solved_time = loads(user_data_str)['solved_time']
         user_score = int(loads(user_data_str)['score'])
+        user_hints = loads(user_data_str)['hints']
     else:
         user_progress = list()
         user_voids = list()
         user_solved_time = list()
         user_score = 0
+        user_hints = dict()
 
     puzzle = context.user_data
+    puzzles = load_data_from_json(user_id)
 
     if puzzle['is_voided']:
         user_voids.append(puzzle['cur_puzzle_idx'])
+    elif for_hint:
+        user_hints[puzzle['cur_puzzle_idx']] = user_hints.get(puzzle['cur_puzzle_idx'],0) + 1
+        user_score -= 1
     else:
         user_progress.append(puzzle['cur_puzzle_idx'])
         user_solved_time.append(time.time())
         user_score += puzzle['score']
+
+    if len(user_voids) + len(user_progress) == len(puzzles):
+        user_score += HINT_POINTS*(GIVEN_HINTS - sum(user_hints.values()))
+
     user_name = puzzle['username']
-    user_data_str = dumps({'username': user_name, 'progress': user_progress, 'voids': user_voids, 'solved_time': user_solved_time, 'score': str(user_score)}, indent=2)
+    user_data_str = dumps({'username': user_name, 'progress': user_progress, 'voids': user_voids, 'solved_time': user_solved_time, 'score': str(user_score), 'hints': user_hints}, indent=2)
     write_dp(user_id, user_data_str)
 
 def send_description(description, chat_id, bot):

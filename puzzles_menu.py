@@ -3,6 +3,7 @@ from json import loads, dumps
 from os import path
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ConversationHandler, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
+from env import GIVEN_HINTS, HINT_POINTS
 
 from dpad_manager import read_dp
 
@@ -38,6 +39,7 @@ def choose_puzzle(update, context):
 
     bot = context.bot
 
+    # If it is not the final puzzle or the final puzzle is already unlocked
     if not puzzles[puzzle_idx].is_final or len(user_progress) + len(user_voids) >= len(puzzles) - 1:
         context.user_data['cur_puzzle_idx'] = puzzle_idx
         context.user_data['score'] = puzzles[puzzle_idx].score
@@ -84,6 +86,7 @@ def choose_puzzle(update, context):
         query.message.reply_text(text=''.join(txt), reply_markup=reply_markup)
 
         return CHOOSE_OPTION
+    # Else, the locked final puzzle is selected
     else:
         reply_markup = get_options_keyboard(context.chat_data, user_id)
         try:
@@ -104,7 +107,6 @@ def back_to_puzzle(update, context):
     puzzle_idx = context.user_data['cur_puzzle_idx']
     puzzles = context.chat_data[user_id]
 
-    # We need to check whether the selected puzzle is the final puzzle
     user_data_str = read_dp(str(user_id))
 
     if user_data_str:
@@ -209,9 +211,33 @@ def void(update, context):
     except:
         pass
 
+    user_data_str = read_dp(str(user_id))
+    if user_data_str:
+        user_progress = loads(user_data_str)['progress']
+        user_voids = loads(user_data_str)['voids']
+        user_score = loads(user_data_str)['score']
+        user_hints = sum(loads(user_data_str)['hints'].values())
+    else:
+        user_progress = list()
+        user_voids = list()
+        user_score = 0
+        user_hints = 0
+
     reply_markup = get_options_keyboard(context.chat_data, user_id)
-    query.edit_message_text('You have just voided the puzzle! Now choose a puzzle to view ...', reply_markup=reply_markup)
-    save_user_progress(str(user_id), context)
+
+    if len(user_progress) + len(user_voids) == len(puzzles) - 1:
+        if GIVEN_HINTS - user_hints == 1:
+            query.edit_message_text(f'You have just voided the final puzzle!\n\nYour final score is {int(user_score) + HINT_POINTS*(GIVEN_HINTS - user_hints)} because you had extra {HINT_POINTS} points from the {GIVEN_HINTS - user_hints} unused hint! Nicely done!\n\nNow choose a puzzle to view ...', reply_markup=reply_markup)
+        elif GIVEN_HINTS - user_hints != 0:
+            query.edit_message_text(f'You have just voided the final puzzle!\n\nYour final score is {int(user_score) + HINT_POINTS*(GIVEN_HINTS - user_hints)} because you had extra {HINT_POINTS} points from each of the {GIVEN_HINTS - user_hints} unused hints! Nicely done!\n\nNow choose a puzzle to view ...', reply_markup=reply_markup)
+        else:
+            query.edit_message_text(f'You have just voided the final puzzle!\n\nYour final score is {user_score}. Woohoo!\n\nNow choose a puzzle to view ...', reply_markup=reply_markup)
+    elif len(user_progress) + len(user_voids) == len(puzzles) - 2:
+        query.edit_message_text(f'You have just voided the puzzle! Final puzzle unlocked!\n\nYour score is now {user_score}.\n\nNow choose a puzzle to view ...', reply_markup=reply_markup)
+    else:
+        query.edit_message_text(f'You have just voided the puzzle!\n\nYour score is now {user_score}.\n\nNow choose a puzzle to view ...', reply_markup=reply_markup)
+    
+    save_user_progress(str(user_id), context, False)
     return CHOOSE_PUZZLE
 
 def ask_hint(update, context):
@@ -226,7 +252,7 @@ def ask_hint(update, context):
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-    query.edit_message_text('Do you really need a hint for this puzzle? 🤔\n\nWARNING: Asking for a hint will decrease the maximum point from this puzzle by 1!', reply_markup=reply_markup)
+    query.edit_message_text('Do you really need a hint for this puzzle? 🤔\n\nWARNING: Asking for a hint will decrease your score by 1!', reply_markup=reply_markup)
 
     return CHOOSE_HINT
 
@@ -254,16 +280,50 @@ def hint(update, context):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    if puzzles[puzzle_idx].used_hints < len(puzzle_hints):
+    user_data_str = read_dp(str(user_id))
+    if user_data_str:
+        user_score = int(loads(user_data_str)['score'])
+        user_hints = sum(loads(user_data_str)['hints'].values())
+        hint_index = loads(user_data_str)['hints'].get(puzzle_idx,0)
+    else:
+        user_score = 0
+        user_hints = 0
+        hint_index = 0
+
+    if puzzles[puzzle_idx].used_hints < len(puzzle_hints) and GIVEN_HINTS - user_hints >= 1:
         bot.delete_message(chat_id=user_id, message_id=query.message.message_id)
-        bot.send_message(user_id, f'Hint #{puzzles[puzzle_idx].used_hints+1} for "{puzzles[puzzle_idx].name}"\n\n{puzzle_hints[puzzles[puzzle_idx].used_hints]}')
+        bot.send_message(user_id, f'Hint #{hint_index+1} for "{puzzles[puzzle_idx].name}"\n\n{puzzle_hints[hint_index]}')
             
         puzzles[puzzle_idx].used_hints += 1
-        puzzles[puzzle_idx].set_new_score()
+        save_user_progress(str(user_id), context, True)
 
-        text = 'That was a hint for the puzzle! Hope it helps!'
+        # Must reread progress
+        user_data_str = read_dp(str(user_id))
+        if user_data_str:
+            user_score = int(loads(user_data_str)['score'])
+            user_hints = sum(loads(user_data_str)['hints'].values())
+        else:
+            user_score = 0
+            user_hints = 0
+
+        if GIVEN_HINTS - user_hints == 1:
+            s = ''
+        else:
+            s = 's'
+        
+        text = f'That was a hint for the puzzle! Hope it helps!\n\nYour score is now {user_score} and you have {GIVEN_HINTS-user_hints} unused hint{s} remaining.'
     else:
-        text = 'You have no more available hints for the puzzle!'
+        if GIVEN_HINTS - user_hints == 1:
+            s = ''
+        else:
+            s = 's'
+        
+        # You have not enough hints
+        if GIVEN_HINTS - user_hints == 0:
+            text = f'You have no more available hints!\n\nYour score is still {user_score}.'
+        # You have asked for all the puzzle's hint(s)
+        else:
+            text = f'The puzzle has no more hints!\n\nYour score is still {user_score} and you still have {GIVEN_HINTS-user_hints} unused hint{s} remaining.'
     
     try:
         query.edit_message_text(f'{text}\n\nShowing "{puzzles[puzzle_idx].name}".', reply_markup=reply_markup)
@@ -309,14 +369,22 @@ def check_answer(update, context):
             user_progress = loads(user_data_str)['progress']
             user_voids = loads(user_data_str)['voids']
             user_score = loads(user_data_str)['score']
+            user_hints = sum(loads(user_data_str)['hints'].values())
         else:
             user_progress = list()
             user_voids = list()
+            user_hints = 0
             user_score = 0
+        
         if len(user_progress) + len(user_voids) == len(puzzles) - 1:
-            result = f'Right answer! Congratulations @{user_name}! You have completed the whole puzzle! Your final score is {int(user_score) + puzzles[puzzle_idx].score}!'
+            if GIVEN_HINTS - user_hints == 1:
+                result = f'Right answer! Congratulations @{user_name}! You have completed the whole puzzle! Your final score is {int(user_score) + puzzles[puzzle_idx].score + HINT_POINTS*(GIVEN_HINTS - user_hints)} because you had extra {HINT_POINTS} points from the {GIVEN_HINTS - user_hints} unused hint! Nicely done!'
+            elif GIVEN_HINTS - user_hints != 0:
+                result = f'Right answer! Congratulations @{user_name}! You have completed the whole puzzle! Your final score is {int(user_score) + puzzles[puzzle_idx].score + HINT_POINTS*(GIVEN_HINTS - user_hints)} because you had extra {HINT_POINTS} points from each of the {GIVEN_HINTS - user_hints} unused hints! Nicely done!'
+            else:
+                result = f'Right answer! Congratulations @{user_name}! You have completed the whole puzzle! Your final score is {int(user_score) + puzzles[puzzle_idx].score}. Woohoo!'
         elif len(user_progress) + len(user_voids) == len(puzzles) - 2:
-            result = f'Right answer! Congratulations @{user_name}! You have unlocked the final puzzle! Your score is currently {int(user_score) + puzzles[puzzle_idx].score}!'
+            result = f'Right answer! Congratulations @{user_name}! You have unlocked the final puzzle! Your score is currently {int(user_score) + puzzles[puzzle_idx].score}.'
         elif user_progress:
             result = f'Right answer! Congratulations @{user_name}! You have solved {len(user_progress) + 1} puzzles and your score is now {int(user_score) + puzzles[puzzle_idx].score}!'
         else:
@@ -324,7 +392,7 @@ def check_answer(update, context):
         
         puzzles[puzzle_idx].is_completed = True
         puzzles[puzzle_idx].set_completed_title()
-        save_user_progress(str(user_id), context)
+        save_user_progress(str(user_id), context, False)
     else:
         keyboard = [
             [
@@ -335,7 +403,7 @@ def check_answer(update, context):
                 InlineKeyboardButton(text='Ask for hint ❓', callback_data='ask_hint')
             ]
         ] + keyboard
-        result = 'Sorry, wrong answer! Want to try again? Or void the puzzle?'
+        result = 'Sorry, wrong answer! Want to try again, void the puzzle, or ask for a hint?'
 
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text(result, reply_markup=reply_markup)
@@ -363,7 +431,7 @@ def leave_puzzles_menu(update, context):
     except:
         pass
 
-    query.edit_message_text('Bye, see you later! Feel free to come back and type /puzzles 😊')
+    query.edit_message_text('Bye, see you later! 😊')
     return ConversationHandler.END
 
 puzzles_menu = ConversationHandler(
