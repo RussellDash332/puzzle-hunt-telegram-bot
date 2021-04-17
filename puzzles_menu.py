@@ -93,6 +93,69 @@ def choose_puzzle(update, context):
 
         return CHOOSE_PUZZLE
 
+def back_to_puzzle(update, context):
+    # When this method is executed, it is guaranteed that the puzzle is neither completed nor voided.
+
+    query = update.callback_query
+    user_id = update.effective_user.id
+
+    query.answer()
+
+    puzzle_idx = context.user_data['cur_puzzle_idx']
+    puzzles = context.chat_data[user_id]
+
+    # We need to check whether the selected puzzle is the final puzzle
+    user_data_str = read_dp(str(user_id))
+
+    if user_data_str:
+        user_progress = loads(user_data_str)['progress']
+        user_voids = loads(user_data_str)['voids']
+    else:
+        user_progress = list()
+        user_voids = list()
+
+    bot = context.bot
+
+    context.user_data['cur_puzzle_idx'] = puzzle_idx
+    context.user_data['score'] = puzzles[puzzle_idx].score
+    context.user_data['username'] = update.effective_user.username
+    context.user_data['is_voided'] = puzzles[puzzle_idx].is_voided
+
+    name = puzzles[puzzle_idx].name
+    description = puzzles[puzzle_idx].description
+    is_completed = puzzles[puzzle_idx].is_completed
+    is_voided = puzzles[puzzle_idx].is_voided
+
+    try:
+        last_description = context.user_data['last_description']
+        bot.delete_message(chat_id=user_id, message_id=last_description.message_id)
+    except:
+        pass
+    bot.delete_message(chat_id=user_id, message_id=query.message.message_id)
+
+    keyboard = [
+        [
+            InlineKeyboardButton(text='Try this puzzle 🧩', callback_data='try'),
+            InlineKeyboardButton(text='Back to puzzles\' list 📃', callback_data='back')
+        ],
+        [
+            InlineKeyboardButton(text='Void this puzzle ❌', callback_data='ask_void'),
+            InlineKeyboardButton(text='Ask for hint ❓', callback_data='ask_hint')
+        ],
+        [
+            InlineKeyboardButton(text='Done ✔️', callback_data='done')
+        ]
+    ]
+
+    txt = [f'Showing "{name}".']
+    # Update response for completed puzzle
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    context.user_data['last_description'] = send_description(description, user_id, bot)
+    query.message.reply_text(text=''.join(txt), reply_markup=reply_markup)
+
+    return CHOOSE_OPTION
+
 def return_to_puzzles_menu(update, context):
     query = update.callback_query
     user_id = update.effective_user.id
@@ -116,7 +179,15 @@ def ask_void(update, context):
     query = update.callback_query
     query.answer()
 
-    query.edit_message_text('If you really want to void this puzzle, type "confirm". Otherwise, type "back".')
+    keyboard = [
+        [
+            InlineKeyboardButton(text='Confirm! 👍', callback_data='void'),
+            InlineKeyboardButton(text='Back to puzzle 📃', callback_data='undo')
+        ],
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('Do you really want to void this puzzle? 🥺', reply_markup=reply_markup)
 
     return CHOOSE_VOID
 
@@ -124,29 +195,38 @@ def void(update, context):
     user_id = update.effective_user.id
     puzzles = context.chat_data[user_id]
     puzzle_idx = context.user_data['cur_puzzle_idx']
-    user_answer = update.message.text
+    query = update.callback_query
+    query.answer()
 
-    if user_answer == "confirm" or user_answer == "Confirm":
-        context.user_data['is_voided'] = True
-        puzzles[puzzle_idx].is_voided = True
-        puzzles[puzzle_idx].set_void_title()
+    context.user_data['is_voided'] = True
+    puzzles[puzzle_idx].is_voided = True
+    puzzles[puzzle_idx].set_void_title()
 
-        reply_markup = get_options_keyboard(context.chat_data, user_id)
-        update.message.reply_text('You have just voided the puzzle! Now choose a puzzle to view ...', reply_markup=reply_markup)
-        save_user_progress(str(user_id), context)
-        return CHOOSE_PUZZLE
-    elif user_answer == "back" or user_answer == "Back":
-        reply_markup = get_options_keyboard(context.chat_data, user_id)
-        update.message.reply_text('You have canceled to void the puzzle! Now choose a puzzle to view ...', reply_markup=reply_markup)
-        return CHOOSE_PUZZLE
-    else:
-        return CHOOSE_VOID
+    bot = context.bot
+    try:
+        last_description = context.user_data['last_description']
+        bot.delete_message(chat_id=user_id, message_id=last_description.message_id)
+    except:
+        pass
+
+    reply_markup = get_options_keyboard(context.chat_data, user_id)
+    query.edit_message_text('You have just voided the puzzle! Now choose a puzzle to view ...', reply_markup=reply_markup)
+    save_user_progress(str(user_id), context)
+    return CHOOSE_PUZZLE
 
 def ask_hint(update, context):
     query = update.callback_query
     query.answer()
 
-    query.edit_message_text('If you really want to ask for a hint, type "confirm". Otherwise, type "back".\n\nWARNING: Asking for a hint will decrease the maximum point from this puzzle by 1!')
+    keyboard = [
+        [
+            InlineKeyboardButton(text='Confirm! 👍', callback_data='hint'),
+            InlineKeyboardButton(text='Back to puzzle 📃', callback_data='undo')
+        ],
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    query.edit_message_text('Do you really need a hint for this puzzle? 🤔\n\nWARNING: Asking for a hint will decrease the maximum point from this puzzle by 1!', reply_markup=reply_markup)
 
     return CHOOSE_HINT
 
@@ -155,28 +235,42 @@ def hint(update, context):
     puzzles = context.chat_data[user_id]
     puzzle_idx = context.user_data['cur_puzzle_idx']
     puzzle_hints = puzzles[puzzle_idx].hints
-    user_answer = update.message.text
+    query = update.callback_query
+    query.answer()
 
-    if user_answer == "confirm" or user_answer == "Confirm":
-        if puzzles[puzzle_idx].used_hints < len(puzzle_hints):
-            update.message.reply_text(f'Hint #{puzzles[puzzle_idx].used_hints+1} for "{puzzles[puzzle_idx].name}"\n\n{puzzle_hints[puzzles[puzzle_idx].used_hints]}')
+    bot = context.bot
+    keyboard = [
+        [
+            InlineKeyboardButton(text='Try this puzzle 🧩', callback_data='try'),
+            InlineKeyboardButton(text='Back to puzzles\' list 📃', callback_data='back')
+        ],
+        [
+            InlineKeyboardButton(text='Void this puzzle ❌', callback_data='ask_void'),
+            InlineKeyboardButton(text='Ask for hint ❓', callback_data='ask_hint')
+        ],
+        [
+            InlineKeyboardButton(text='Done ✔️', callback_data='done')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    if puzzles[puzzle_idx].used_hints < len(puzzle_hints):
+        bot.delete_message(chat_id=user_id, message_id=query.message.message_id)
+        bot.send_message(user_id, f'Hint #{puzzles[puzzle_idx].used_hints+1} for "{puzzles[puzzle_idx].name}"\n\n{puzzle_hints[puzzles[puzzle_idx].used_hints]}')
             
-            puzzles[puzzle_idx].used_hints += 1
-            puzzles[puzzle_idx].set_new_score()
+        puzzles[puzzle_idx].used_hints += 1
+        puzzles[puzzle_idx].set_new_score()
 
-            reply_markup = get_options_keyboard(context.chat_data, user_id)
-            update.message.reply_text('That was a hint for the puzzle! Now choose a puzzle to view again ...', reply_markup=reply_markup)
-            return CHOOSE_PUZZLE
-        else:
-            reply_markup = get_options_keyboard(context.chat_data, user_id)
-            update.message.reply_text('You have no more available hints for the puzzle! Now choose a puzzle to view again ...', reply_markup=reply_markup)
-            return CHOOSE_PUZZLE
-    elif user_answer == "back" or user_answer == "Back":
-        reply_markup = get_options_keyboard(context.chat_data, user_id)
-        update.message.reply_text('You have canceled to ask a hint for the puzzle! Now choose a puzzle to view ...', reply_markup=reply_markup)
-        return CHOOSE_PUZZLE
+        text = 'That was a hint for the puzzle! Hope it helps!'
     else:
-        return CHOOSE_HINT
+        text = 'You have no more available hints for the puzzle!'
+    
+    try:
+        query.edit_message_text(f'{text}\n\nShowing "{puzzles[puzzle_idx].name}".', reply_markup=reply_markup)
+    except:
+        query.message.reply_text(f'{text}\n\nShowing "{puzzles[puzzle_idx].name}".', reply_markup=reply_markup)
+
+    return CHOOSE_OPTION
 
 def answer_puzzle(update, context):
     query = update.callback_query
@@ -260,6 +354,15 @@ def leave_puzzles_menu(update, context):
     query = update.callback_query
     query.answer()
 
+    user_id = update.effective_user.id
+
+    bot = context.bot
+    try:
+        last_description = context.user_data['last_description']
+        bot.delete_message(chat_id=user_id, message_id=last_description.message_id)
+    except:
+        pass
+
     query.edit_message_text('Bye, see you later! Feel free to come back and type /puzzles 😊')
     return ConversationHandler.END
 
@@ -279,10 +382,12 @@ puzzles_menu = ConversationHandler(
             MessageHandler(~Filters.regex('^/'), check_answer)
         ],
         CHOOSE_VOID: [
-            MessageHandler(~Filters.regex('^/'), void)
+            CallbackQueryHandler(void, pattern='^void$'),
+            CallbackQueryHandler(back_to_puzzle, pattern='^undo$')
         ],
         CHOOSE_HINT: [
-            MessageHandler(~Filters.regex('^/'), hint)
+            CallbackQueryHandler(hint, pattern='^hint$'),
+            CallbackQueryHandler(back_to_puzzle, pattern='^undo$')
         ],
         CHOOSE_CONTINUE_OPTION: [
             CallbackQueryHandler(try_again, pattern='^try_again$'),

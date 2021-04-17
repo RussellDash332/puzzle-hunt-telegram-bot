@@ -11,7 +11,8 @@ def start(update, context):
     welcome_txt = [
         'Welcome to the MSOC 2021 Puzzle Hunt!',
         'There are currently 6 puzzles and we can\'t wait to see you solving these puzzles!',
-        'Now type /puzzles to look at the list of puzzles to solve.',
+        'Do take note that the final puzzle is unlocked only when you have solved or voided all the remaining puzzles!',
+        'Now type /puzzles to look at the list of puzzles to solve.'
         ]
 
     update.message.reply_text('\n\n'.join(welcome_txt))
