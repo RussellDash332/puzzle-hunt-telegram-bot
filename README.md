@@ -6,11 +6,11 @@ MSOC 2021 Puzzle Hunt Telegram Bot. Inspired by the [Royal Flush Telegram Bot](h
 [Link to the bot](https://t.me/msoc21ph_bot) here.
 
 ## How it works
-First, run **main.py**, where it contains the regular commands such as ```/start```, ```/score```, and ```/hints```. It will then lead you to **puzzles_menu.py** where it contains the main puzzle conversation handler and query handlers. Inside is a list of commands handling different cases and options, depending on the user.
+First, run [**main.py**](https://github.com/RussellDash332/puzzle-hunt-telegram-bot/blob/main/main.py), where it contains the regular commands such as ```/start```, ```/score```, and ```/hints```. It will then lead you to [**puzzles_menu.py**](https://github.com/RussellDash332/puzzle-hunt-telegram-bot/blob/main/puzzles_menu.py) where it contains the main puzzle conversation handler and query handlers related to the ```/puzzles``` command. Inside is a list of commands handling different cases and options, depending on the user, such as asking for a hint and retrying a puzzle.
 
-The puzzle itself is stored in a object-oriented manner inside **cmd_base.py**. In that same file, there are also methods regarding progress update because it has to be continuously updated with the DontPad database.
+The puzzle itself is stored in a object-oriented manner inside [**cmd_base.py**](https://github.com/RussellDash332/puzzle-hunt-telegram-bot/blob/main/cmd_base.py). In that same file, there are also methods regarding progress update because it has to be continuously updated with the DontPad database.
 
-Finally, reading and writing the JSON-styled database from and to DontPad is implemented in **dpad_manager.py**.
+Finally, reading/writing the JSON-styled database from/to DontPad is implemented in [**dpad_manager.py**](https://github.com/RussellDash332/puzzle-hunt-telegram-bot/blob/main/dpad_manager.py).
 
 ## Hidden files
 + **game_data/** directory, containing the puzzle data (**game_data.json**) and the images/texts (either in .jpg or .txt format) for the description.
