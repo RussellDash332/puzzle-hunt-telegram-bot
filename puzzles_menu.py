@@ -70,6 +70,7 @@ def choose_puzzle(update, context):
         txt = [f'Showing "{name}".']
         # Update response for completed puzzle
         if is_completed or is_voided:
+            # We can set the index to any number as long as there is no IndexError
             first_answer = puzzles[puzzle_idx].answers[0]
 
             if is_completed:
@@ -252,7 +253,7 @@ def ask_hint(update, context):
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-    query.edit_message_text('Do you really need a hint for this puzzle? 🤔\n\nWARNING: Asking for a hint will decrease your score by 1!', reply_markup=reply_markup)
+    query.edit_message_text('Do you really need a hint for this puzzle? 🤔\n\nTIP: Type /hints before you confirm!', reply_markup=reply_markup)
 
     return CHOOSE_HINT
 
