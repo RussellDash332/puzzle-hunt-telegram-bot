@@ -104,7 +104,7 @@ def save_user_progress(user_id, context, for_hint):
         user_voids.append(puzzle['cur_puzzle_idx'])
     elif for_hint:
         user_hints[puzzle['cur_puzzle_idx']] = user_hints.get(puzzle['cur_puzzle_idx'],0) + 1
-        user_score -= 1
+        # user_score -= 1
     else:
         user_progress.append(puzzle['cur_puzzle_idx'])
         user_solved_time.append(time.time())

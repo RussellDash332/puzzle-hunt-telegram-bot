@@ -75,8 +75,8 @@ def choose_puzzle(update, context):
             if is_completed:
                 txt.append(f'\nYou already completed this puzzle! The answer was "{first_answer}".')
             elif is_voided:
-                txt.append(f'\nYou already voided this puzzle!')
-                # txt.append(f' You already voided this puzzle! No way back, but the answer was "{first_answer}".\n')
+                # txt.append(f'\nYou already voided this puzzle!')
+                txt.append(f' You already voided this puzzle! No way back, but the answer was "{first_answer}".\n')
 
             keyboard = [[keyboard[0][1],keyboard[2][0]]] # only back and done
 
