@@ -10,7 +10,7 @@ from dpad_manager import read_dp
 def start(update, context):
     welcome_txt = [
         'Welcome to the MSOC 2021 Puzzle Hunt!',
-        'There are currently 6 puzzles and we can\'t wait to see you solving these puzzles!',
+        'There are currently 11 puzzles (including the final puzzle) and we can\'t wait to see you solving these puzzles!',
         'Do take note that the final puzzle is unlocked only when you have solved or voided all the remaining puzzles!',
         f'You can type /score or /hints anytime to know your current score or remaining hints. You can ask for up to {GIVEN_HINTS} hints, so use wisely!',
         'Now type /puzzles to look at the list of puzzles to solve.'

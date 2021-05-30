@@ -26,7 +26,7 @@ class Puzzle:
         self.used_hints = 0
         self.is_completed = None
         self.is_voided = False
-        self.is_final = self.idx == "[FINAL]"
+        self.is_final = self.idx == "[FINAL - UTown]"
 
     def set_completed_title(self):
         self.title = f'{self.idx} {self.name} (COMPLETED)'

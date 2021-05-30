@@ -3,3 +3,4 @@ __pycache__/
 env/
 game_data/
 env.py
+dummy.py

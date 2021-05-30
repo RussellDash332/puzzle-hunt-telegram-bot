@@ -354,7 +354,7 @@ def check_answer(update, context):
     user_name = context.user_data['username']
 
     right_answers = puzzles[puzzle_idx].answers
-    user_answer = update.message.text
+    user_answer = update.message.text.lower()
 
     keyboard = [
         [
