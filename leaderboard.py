@@ -2,7 +2,8 @@
 # Manual input to game_data/leaderboard.json then let the sorting do the work
 
 import json
-from env import DP_URL, dry_run, actual_run
+from env import DP_URL
+from env2 import actual_run
 from dpad_manager import read_dp
 
 def read_json(filename):
@@ -27,8 +28,8 @@ new_lb_data.sort(key = lambda x:[-int(x[1]),x[2][::-1]])
 # Update content before final output
 new_lb_data = list(map(lambda x: x[0]+": "+x[1], new_lb_data))
 
-# Display top 4
-emotes = ['🥇','🥈','🥉','🆒']
+# Display all!
+emotes = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟']+['🆒']*6
 print("👾 CURRENT SCORES 👾")
-for i in range(min(4,len(new_lb_data))):
+for i in range(min(16,len(new_lb_data))):
     print(emotes[i]+" "+new_lb_data[i])
