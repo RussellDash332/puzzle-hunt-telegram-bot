@@ -49,21 +49,21 @@ def hints(update, context):
 
     update.message.reply_text(f'You have {GIVEN_HINTS - user_hints} unused hint{s} remaining.')
 
-def main():
+# The function name can be anything, should you deploy it.
+def main(request):
     updater = Updater(token=TOKEN, use_context=True)
-    dp = updater.dispatcher
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("score", score))
-    dp.add_handler(CommandHandler("hints", hints))
-    dp.add_handler(puzzles_menu)
+    if request.method == 'POST':
+        dp = updater.dispatcher
 
-    updater.start_polling()
-    print("++++++++++ STARTING BOT +++++++++++")
-    updater.idle()
-    print("++++++++++  KILLING BOT  ++++++++++")
+        dp.add_handler(CommandHandler("start", start))
+        dp.add_handler(CommandHandler("score", score))
+        dp.add_handler(CommandHandler("hints", hints))
+        dp.add_handler(puzzles_menu)
 
+        updater.start_polling()
+        # print("++++++++++ STARTING BOT +++++++++++")
+        # updater.idle()
+        # print("++++++++++  KILLING BOT  ++++++++++")
 
-if __name__ == '__main__':
-    print("Press CTRL + C to kill the bot")
-    main()
+    return "OK"
